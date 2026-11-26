@@ -58,6 +58,7 @@ body.rm .song.sel{transform:none}
 .song .srank{font-weight:900;font-size:20px;min-width:26px;text-align:center}
 .song.add{border-style:dashed;border-left-width:1px;justify-content:center;color:var(--dim);font-weight:700}
 .sel-detail{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;touch-action:pan-y}
+.sel-detail>*{flex-shrink:0}
 .pv{position:relative;height:84px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#070916;flex:none}
 .pv canvas{width:100%;height:100%;display:block}
 .d-title{font-size:clamp(20px,3.4vw,34px);font-weight:900;letter-spacing:.08em;color:var(--theme);text-shadow:0 0 16px var(--theme);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -201,7 +202,7 @@ table.st th{color:var(--dim);font-weight:600;font-size:12px}
       <button class="btn" id="btn-title-help">도움말</button>
       <button class="btn fs-btn">전체화면</button>
     </div>
-    <p class="foot">키보드 A S D F J K L ; · 터치 지원</p>
+    <p class="foot">아무 키 · 화면 터치로 플레이 (8키 모드 지원)</p>
     <p class="rot-note">모바일에서는 가로 모드를 권장해요.</p>
   </div>
 </section>
@@ -225,6 +226,7 @@ table.st th{color:var(--dim);font-weight:600;font-size:12px}
   </div>
   <footer class="sel-foot">
     <div class="chips">
+      <button class="chip" id="chip-input" aria-pressed="true">입력 <b>아무 키</b></button>
       <button class="chip death" id="chip-death" aria-pressed="true">즉사 노트 <b>ON</b></button>
       <button class="chip warn" id="chip-inv" aria-pressed="false">무적 <b>OFF</b></button>
       <button class="chip warn" id="chip-auto" aria-pressed="false">자동 플레이 <b>OFF</b></button>
@@ -285,6 +287,11 @@ table.st th{color:var(--dim);font-weight:600;font-size:12px}
   <div class="scroll"><div class="col help">
     <h3>기본 조작</h3>
     <p>노트가 판정선에 닿는 순간 해당 레인의 키를 누르세요. 기본 키는 <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd> <kbd>;</kbd> 이며 설정에서 바꿀 수 있어요. 터치 기기에서는 레인의 세로 영역 전체가 터치 영역입니다. <kbd>Esc</kbd> 로 일시정지합니다. 메뉴는 <kbd>Tab</kbd>/방향키와 <kbd>Enter</kbd> 로도 조작할 수 있어요.</p>
+    <h3>입력 방식</h3>
+    <ul>
+      <li><b>아무 키 모드(기본)</b> — 아무 키나, 화면 어디든 눌러도 시간상 가장 가까운 노트를 칩니다. 레인 위치는 신경 쓰지 않아도 되는 대신 리듬이 더 촘촘하고 복잡합니다. 동시치기는 키를 그 개수만큼 함께 누르고, 홀드는 누른 키를 끝까지 유지하세요. 즉사 노트가 판정선을 지날 때는 <b>어떤 키도</b> 누르고 있으면 안 됩니다.</li>
+      <li><b>8키 모드</b> — 레인마다 정해진 키로 칩니다. 곡 선택 화면의 "입력" 칩이나 설정에서 바꿀 수 있어요. 기록은 입력 방식별로 따로 저장됩니다.</li>
+    </ul>
     <h3>노트 4종</h3>
     <canvas id="help-legend"></canvas>
     <ul>
@@ -397,6 +404,34 @@ function PureLib() {
     normal: { key: 'normal', name: 'Normal', hpMul: 1.0, minGap: 0.16, maxSimul: 3, maxChord: 3, maxNps: 8,  tgtMaxNps: 7,  avg: [2.5, 4.5], tgtAvg: 3.5, maxDeath: 8 },
     hard:   { key: 'hard',   name: 'Hard',   hpMul: 1.4, minGap: 0.12, maxSimul: 4, maxChord: 3, maxNps: 12, tgtMaxNps: 10, avg: [4, 7],     tgtAvg: 5.5, maxDeath: 14 }
   };
+  DIFFS.easy.lv = 0; DIFFS.normal.lv = 1; DIFFS.hard.lv = 2;
+  // 아무 키 모드: 레인 이동 부담이 없으므로 리듬이 더 촘촘하고 복잡하다.
+  //  minIoi = 서로 다른 시각의 연속 입력 사이 최소 간격(동시치기는 같은 시각)
+  const ANY_DIFFS = {
+    easy:   { key: 'easy',   name: 'Easy',   hpMul: 0.6, minGap: 0.12, minIoi: 0.15,  maxSimul: 2, maxChord: 2, maxNps: 6,  tgtMaxNps: 5,  avg: [2.5, 3.5], tgtAvg: 3.0, maxDeath: 3,  lv: 1 },
+    normal: { key: 'normal', name: 'Normal', hpMul: 1.0, minGap: 0.10, minIoi: 0.105, maxSimul: 3, maxChord: 2, maxNps: 10, tgtMaxNps: 8,  avg: [3.5, 5.5], tgtAvg: 4.9, maxDeath: 8,  lv: 2 },
+    hard:   { key: 'hard',   name: 'Hard',   hpMul: 1.4, minGap: 0.08, minIoi: 0.07,  maxSimul: 3, maxChord: 3, maxNps: 14, tgtMaxNps: 12, avg: [5.5, 8.5], tgtAvg: 7.8, maxDeath: 14, lv: 3 }
+  };
+  const SLOTS = 16;     // 아무 키 모드에서 동시에 추적하는 키/손가락 수
+  function prof(diff, input) { return (input === 'any' ? ANY_DIFFS : DIFFS)[diff] || DIFFS.normal; }
+  // 같은 시각 묶음 단위로, 연속 입력 간격이 minIoi 보다 좁으면 우선순위(pr)가 낮은 묶음을 버린다
+  function enforceIoi(items, minIoi) {
+    const groups = [];
+    for (let i = 0; i < items.length;) {
+      let j = i, pr = -Infinity;
+      while (j < items.length && items[j].t - items[i].t < 1e-4) { if (items[j].pr > pr) pr = items[j].pr; j++; }
+      groups.push({ t: items[i].t, pr: pr, a: i, b: j }); i = j;
+    }
+    const kept = [];
+    for (let k = 0; k < groups.length; k++) {
+      const g = groups[k], last = kept[kept.length - 1];
+      if (!last || g.t - last.t >= minIoi - 1e-9) kept.push(g);
+      else if (g.pr > last.pr) kept[kept.length - 1] = g;
+    }
+    const out = [];
+    for (let k = 0; k < kept.length; k++) for (let i = kept[k].a; i < kept[k].b; i++) out.push(items[i]);
+    return out;
+  }
   const DEATH_MIN_T = 6, DEATH_END_GAP = 4, DEATH_SPACING = 1.5;
   const LIMITS = { maxBytes: 300 * 1024 * 1024, warnSec: 480, maxSec: 1200, minSec: 5, decimSec: 300 };
 
@@ -763,17 +798,17 @@ function PureLib() {
    * =================================================================== */
   function vOpts(chart, opt) {
     opt = opt || {};
-    const diff = opt.diff || chart.diff || 'normal';
-    const meta = chart.meta || {};
+    const diff = DIFFS[opt.diff || chart.diff] ? (opt.diff || chart.diff) : 'normal';
+    const meta = chart.meta || {}, input = (opt.input || meta.input) === 'any' ? 'any' : 'lane';
     return {
-      diff: diff, duration: opt.duration != null ? opt.duration : chart.duration,
-      maxDeath: opt.maxDeath != null ? opt.maxDeath : DIFFS[diff].maxDeath,
+      diff: diff, input: input, D: prof(diff, input), duration: opt.duration != null ? opt.duration : chart.duration,
+      maxDeath: opt.maxDeath != null ? opt.maxDeath : prof(diff, input).maxDeath,
       allowDeath: opt.allowDeath != null ? opt.allowDeath : meta.allowDeath !== false
     };
   }
   function cmpNote(a, b) { return a.t - b.t || a.lane - b.lane; }
   function validateChart(chart, opt) {
-    const o = vOpts(chart, opt), D = DIFFS[o.diff], v = [], ns = chart && chart.notes;
+    const o = vOpts(chart, opt), D = o.D, any = o.input === 'any', v = [], ns = chart && chart.notes;
     const add = function (code, i, msg) { if (v.length < 300) v.push({ code: code, i: i, msg: msg || code }); };
     if (!Array.isArray(ns)) { add('struct', -1, 'notes 배열이 아님'); return v; }
     if (!(o.duration > 0)) { add('struct', -1, '길이 정보 없음'); return v; }
@@ -814,6 +849,16 @@ function PureLib() {
       for (let k = i; k < j; k++) if (sorted[k].type === 'hold') act.push(sorted[k].t + sorted[k].dur);
       i = j;
     }
+    // 아무 키 모드: 서로 다른 시각의 연속 입력 최소 간격
+    if (any) {
+      let pt = -Infinity;
+      for (let i = 0; i < sorted.length; i++) {
+        const t = sorted[i].t;
+        if (t - pt < 1e-3) continue;
+        if (t - pt < D.minIoi - EPS) add('ioi', i, '연속 입력 간격 위반');
+        pt = t;
+      }
+    }
     // 초당 노트 수
     for (let i = 0, j = 0; i < sorted.length; i++) {
       while (j < sorted.length && sorted[j].t < sorted[i].t + 1 - 1e-9) j++;
@@ -838,7 +883,7 @@ function PureLib() {
         }
         for (let k = 0; k < sorted.length; k++) {
           const x = sorted[k];
-          if (x.lane !== d.lane) continue;
+          if (x.lane !== d.lane && !any) continue;          // 아무 키 모드: 모든 레인이 비어 있어야 함
           if (x.t - d.t >= DEATH_CLEAR - EPS) break;
           if (d.t > x.t - DEATH_CLEAR + EPS && d.t < noteEnd(x) + DEATH_CLEAR - EPS) { add('death-clear', i, '즉사 노트 주변 ±300ms 위반'); break; }
         }
@@ -849,7 +894,7 @@ function PureLib() {
 
   // 자동 수리: 삭제/이동(홀드 단축)으로 위반을 없앤다
   function repairChart(chart, opt) {
-    const o = vOpts(chart, opt), D = DIFFS[o.diff], maxT = o.duration - 0.3;
+    const o = vOpts(chart, opt), D = o.D, any = o.input === 'any', maxT = o.duration - 0.3;
     let all = [];
     const src = Array.isArray(chart.notes) ? chart.notes : [];
     for (let i = 0; i < src.length; i++) {
@@ -891,8 +936,8 @@ function PureLib() {
       i = j;
     }
     keep2.sort(cmpNote);
-    // 3) 초당 노트 수
-    body = thinDensity(keep2, { maxNps: D.maxNps, avg: 1e9, span: 1 });
+    // 3) 초당 노트 수 (+ 아무 키 모드: 연속 입력 간격)
+    body = thinDensity(any ? enforceIoi(keep2, D.minIoi) : keep2, { maxNps: D.maxNps, avg: 1e9, span: 1 });
     // 4) 즉사 노트
     const keepD = [];
     if (o.allowDeath) {
@@ -903,7 +948,7 @@ function PureLib() {
         let bad = false;
         for (let k = 0; k < body.length && !bad; k++) {
           const x = body[k];
-          if (x.lane === d.lane && d.t > x.t - DEATH_CLEAR - 1e-4 && d.t < noteEnd(x) + DEATH_CLEAR + 1e-4) bad = true;
+          if ((any || x.lane === d.lane) && d.t > x.t - DEATH_CLEAR - 1e-4 && d.t < noteEnd(x) + DEATH_CLEAR + 1e-4) bad = true;
         }
         if (bad) continue;
         if (d.t - gT < 1e-3) { if (gN >= 2 || keepD[keepD.length - 1].lane === d.lane) continue; gN++; }
@@ -981,10 +1026,10 @@ function PureLib() {
     return a;
   }
   const BUILTIN_DEATH = { easy: 3, normal: 7, hard: 12 };
-  function buildBuiltinChart(song, diffKey) {
-    const D = DIFFS[diffKey], spb = 60 / song.bpm;
-    const rng = mulberry32(hashString('PULSELANE|' + song.id + '|' + diffKey));
-    const easy = diffKey === 'easy', normal = diffKey === 'normal', hard = diffKey === 'hard';
+  function buildBuiltinChart(song, diffKey, input) {
+    const any = input === 'any', D = prof(diffKey, any ? 'any' : 'lane'), spb = 60 / song.bpm, lv = D.lv;
+    const rng = mulberry32(hashString('PULSELANE|' + song.id + '|' + diffKey + (any ? '|any' : '')));
+    const easy = lv === 0, normal = lv === 1, hard = lv >= 2, xh = lv >= 3;
     let lo = 127, hi = 0;
     for (let i = 0; i < song.events.length; i++) { const e = song.events[i]; if (e.i === 'lead' || e.i === 'arp') { if (e.p < lo) lo = e.p; if (e.p > hi) hi = e.p; } }
     const pitchLane = function (p) { return clamp(Math.floor((p - lo) / (hi - lo + 1) * 8), 0, 7); };
@@ -1016,11 +1061,11 @@ function PureLib() {
           else if (normal) { if (pos % 2 === 1 && e.a < 0.85) break; base = 0.92; }
           else base = 0.95;
           grp = 'mel';
-          const minLen = easy ? 3 : normal ? 2 : 1.5;
+          const minLen = easy ? 3 : normal ? 2 : xh ? 1 : 1.5;
           if (e.l >= minLen) hold = Math.min(5.5, (e.l - 0.5) * spb);
           break;
         }
-        case 'arp': if (!hard) break; base = 0.5; grp = 'mel'; break;
+        case 'arp': if (!hard) break; base = xh ? 0.56 : 0.5; grp = 'mel'; break;
         case 'pad': if (!hard || e.a < 0.8) break; base = 0.9; grp = 'pad'; hold = Math.min(5.5, (e.l - 1) * spb); break;
       }
       if (!grp) continue;
@@ -1041,7 +1086,8 @@ function PureLib() {
       let k = 1;
       if (easy) k = acc ? 2 : 1;
       else if (normal) k = acc ? 2 : (top.bar0 && second >= 0.8 ? 2 : 1);
-      else k = acc ? 3 : (top.onBeat && second >= 0.75 ? 2 : 1);
+      else if (!xh) k = acc ? 3 : (top.onBeat && second >= 0.75 ? 2 : 1);
+      else k = acc ? 3 : (top.onBeat && second >= 0.7 ? 2 : (second >= 0.85 ? 2 : 1));
       const seen = {}; let c = 0;
       for (let x = i; x < j && c < k; x++) {
         const cd = cands[x];
@@ -1051,6 +1097,7 @@ function PureLib() {
       i = j;
     }
     sel.sort(function (a, b) { return a.t - b.t || b.pr - a.pr; });
+    if (any) sel = enforceIoi(sel, D.minIoi);
     if (sel.length) {
       const span = Math.max(1, sel[sel.length - 1].t - sel[0].t);
       sel = thinDensity(sel, { maxNps: D.tgtMaxNps, avg: D.tgtAvg, span: span, localWin: 8, localCap: Math.floor(D.avg[1] * 8) });
@@ -1114,7 +1161,7 @@ function PureLib() {
       let c = 0;
       for (let i = 0; i < notes.length; i++) {
         const n = notes[i];
-        if (n.lane !== l) continue;
+        if (n.lane !== l && !any) continue;
         if (t > n.t - M && t < n.t + n.dur + M) { if (n.type === 'hold') return 99; c++; }
       }
       return c;
@@ -1126,11 +1173,11 @@ function PureLib() {
       let lane = -1, bestC = 99;
       for (let x = 0; x < ls.length; x++) { const c = conflicts(ls[x], t); if (c < bestC) { bestC = c; lane = ls[x]; if (c === 0) break; } }
       if (lane < 0 || bestC >= 99) continue;
-      if (bestC > 0) { for (let i = notes.length - 1; i >= 0; i--) { const n = notes[i]; if (n.lane === lane && t > n.t - M && t < n.t + n.dur + M) notes.splice(i, 1); } }
+      if (bestC > 0) { for (let i = notes.length - 1; i >= 0; i--) { const n = notes[i]; if ((any || n.lane === lane) && t > n.t - M && t < n.t + n.dur + M) notes.splice(i, 1); } }
       deaths.push({ t: t, lane: lane, type: 'death', dur: 0, pr: 1 });
     }
     const all = notes.concat(deaths).sort(cmpNote);
-    return finalizeChart({ notes: all, duration: song.duration, diff: diffKey, bpm: song.bpm, offset: 0, meta: { src: 'builtin', mode: 'grid', confidence: 'high', allowDeath: true } }, null, null);
+    return finalizeChart({ notes: all, duration: song.duration, diff: diffKey, bpm: song.bpm, offset: 0, meta: { src: 'builtin', mode: 'grid', confidence: 'high', allowDeath: true, input: any ? 'any' : 'lane' } }, null, null);
   }
 
   /* ===================================================================
@@ -1484,17 +1531,17 @@ function PureLib() {
     return { notes: notes, duration: an.duration, diff: diff, bpm: P.bpm, offset: P.offset, meta: m };
   }
   function generateChart(an, P) {
-    const diff = P.diff, D = DIFFS[diff], dur = an.duration, maxT = dur - 0.36;
+    const diff = P.diff, any = P.input === 'any', D = prof(diff, any ? 'any' : 'lane'), dur = an.duration, maxT = dur - 0.36, lv = D.lv;
     const raw = P.mode !== 'grid';
     const conf = raw ? 'low' : (P.confidence || 'medium');
     const sens = clamp(P.sens == null ? 50 : P.sens, 0, 100);
-    const rng = mulberry32((((P.seed >>> 0) ^ hashString(diff + (raw ? '|raw' : '|grid'))) >>> 0));
+    const rng = mulberry32((((P.seed >>> 0) ^ hashString(diff + (raw ? '|raw' : '|grid') + (any ? '|any' : ''))) >>> 0));
     const bpm = clamp(P.bpm || 120, 30, 400), beat = 60 / bpm, half = beat / 2, off = P.offset || 0;
-    const easy = diff === 'easy', hard = diff === 'hard';
-    const thr = 3.0 * Math.pow(0.4 / 3.0, sens / 100) * (easy ? 1.6 : hard ? 0.85 : 1.15) * (raw ? 1.3 : 1);
-    const meta = { src: 'ext', mode: raw ? 'raw' : 'grid', confidence: conf, allowDeath: !raw && conf === 'high' };
+    const easy = lv === 0, hard = lv >= 2, xh = lv >= 3;
+    const thr = 3.0 * Math.pow(0.4 / 3.0, sens / 100) * (easy ? 1.6 : xh ? 0.7 : hard ? 0.85 : 1.15) * (raw ? 1.3 : 1);
+    const meta = { src: 'ext', mode: raw ? 'raw' : 'grid', confidence: conf, allowDeath: !raw && conf === 'high', input: any ? 'any' : 'lane' };
     const fb = function () { return fallbackChart(an, { diff: diff, seed: P.seed, bpm: bpm, offset: off }, meta); };
-    const vopt = { diff: diff, duration: dur };
+    const vopt = { diff: diff, duration: dur, input: any ? 'any' : 'lane' };
     const done = function (notes) { return finalizeChart({ notes: notes, duration: dur, diff: diff, bpm: bpm, offset: off, meta: Object.assign({}, meta) }, vopt, fb); };
 
     // 1) onset 선택 + 격자 스냅 (허용치 밖이면 버림)
@@ -1504,7 +1551,7 @@ function PureLib() {
       if (d8 <= Math.min(0.045, half * 0.3) || force) return { t: q8, s: o.s, b: o.b, c: o.c, u: o.u, lvl: ((k8 % 2) + 2) % 2 === 0 ? 4 : 8, gd: d8, slot: k8 * 2 };
       if (hard && conf !== 'low') {
         const q = beat / 4;
-        if (q >= 0.07 && o.s >= thr * 1.25) {
+        if (q >= 0.07 && o.s >= thr * (xh ? 1.05 : 1.25)) {
           const k16 = Math.round((o.t - off) / q), q16 = off + k16 * q, d16 = Math.abs(o.t - q16);
           if (d16 <= Math.min(0.028, q * 0.3)) return { t: q16, s: o.s, b: o.b, c: o.c, u: o.u, lvl: 16, gd: d16, slot: k16 };
         }
@@ -1550,8 +1597,9 @@ function PureLib() {
       }
     }
     // 3) 밀도 조절: 과밀 구간은 약한 onset 부터 솎아냄
-    const tgtAvg = raw ? (easy ? 1.2 : hard ? 2.8 : 1.9) : (easy ? 2.0 : hard ? 5.2 : 3.4);
-    const tgtMax = raw ? (easy ? 3 : hard ? 7 : 5) : D.tgtMaxNps;
+    const tgtAvg = raw ? D.tgtAvg * 0.55 : D.tgtAvg * 0.95;
+    const tgtMax = raw ? Math.max(3, Math.round(D.tgtMaxNps * 0.7)) : D.tgtMaxNps;
+    if (any) flat = enforceIoi(flat, D.minIoi);
     if (flat.length) {
       const span = Math.max(1, flat[flat.length - 1].t - flat[0].t);
       flat = thinDensity(flat, { maxNps: tgtMax, avg: tgtAvg, span: span, localWin: 8, localCap: Math.floor((raw ? tgtAvg * 1.4 : D.avg[1]) * 8) });
@@ -1688,7 +1736,7 @@ function PureLib() {
         const ls = shuffled([0, 1, 2, 3, 4, 5, 6, 7], rng);
         for (let x = 0; x < ls.length; x++) {
           const l = ls[x]; let clear = true;
-          for (let k = 0; k < notes.length && clear; k++) { const n = notes[k]; if (n.lane === l && t > n.t - M && t < n.t + n.dur + M) clear = false; }
+          for (let k = 0; k < notes.length && clear; k++) { const n = notes[k]; if ((any || n.lane === l) && t > n.t - M && t < n.t + n.dur + M) clear = false; }
           if (clear) { deaths.push({ t: t, lane: l, type: 'death', dur: 0, pr: 1 }); break; }
         }
       }
@@ -1703,24 +1751,25 @@ function PureLib() {
    * =================================================================== */
   function GameCore(chart, opt) {
     opt = opt || {};
-    this.diffKey = opt.diff || chart.diff || 'normal';
-    this.D = DIFFS[this.diffKey];
+    this.diffKey = DIFFS[opt.diff || chart.diff] ? (opt.diff || chart.diff) : 'normal';
+    this.anyKey = opt.anyKey != null ? !!opt.anyKey : !!(chart.meta && chart.meta.input === 'any');
+    this.D = prof(this.diffKey, this.anyKey ? 'any' : 'lane');
+    this.nSlots = this.anyKey ? SLOTS : LANES;
     this.inv = !!opt.invincible;
     this.on = opt.onEvent || function () {};
-    this.notes = []; this.lanes = []; this.deaths = [];
+    this.notes = []; this.lanes = []; this.deaths = []; this.deathAll = [];
     for (let l = 0; l < LANES; l++) { this.lanes.push([]); this.deaths.push([]); }
     this.N = 0; this.deathTotal = 0;
     const src = chart.notes.slice().sort(cmpNote);
     for (let i = 0; i < src.length; i++) {
       const n = src[i], m = { t: n.t, lane: n.lane, type: n.type, dur: n.type === 'hold' ? n.dur : 0, end: n.type === 'hold' ? n.t + n.dur : n.t, chord: n.chord || 0, st: 0, grade: null, idx: i, hitT: 0 };
       this.notes.push(m);
-      if (m.type === 'death') { this.deaths[m.lane].push(m); this.deathTotal++; }
+      if (m.type === 'death') { this.deaths[m.lane].push(m); this.deathAll.push(m); this.deathTotal++; }
       else { this.lanes[m.lane].push(m); this.N += m.type === 'hold' ? 2 : 1; }
     }
-    this.ptr = [0, 0, 0, 0, 0, 0, 0, 0]; this.dptr = [0, 0, 0, 0, 0, 0, 0, 0];
-    this.down = [false, false, false, false, false, false, false, false];
-    this.downSince = [0, 0, 0, 0, 0, 0, 0, 0];
-    this.holding = [null, null, null, null, null, null, null, null];
+    this.ptr = [0, 0, 0, 0, 0, 0, 0, 0]; this.dptr = [0, 0, 0, 0, 0, 0, 0, 0]; this.dptrAll = 0;
+    this.down = []; this.downSince = []; this.holding = [];
+    for (let s = 0; s < this.nSlots; s++) { this.down.push(false); this.downSince.push(0); this.holding.push(null); }
     this.pts = 0; this.combo = 0; this.maxCombo = 0;
     this.cnt = { perfect: 0, great: 0, good: 0, miss: 0 };
     this.fast = 0; this.slow = 0; this.breaks = 0;
@@ -1773,51 +1822,57 @@ function PureLib() {
     this._hp(HP.brk * this.D.hpMul, t);
   };
   // 레인이 [a,b] 동안 눌려 있었을 때 즉사 노트 창(t±100ms)과 겹치는지 검사
-  GameCore.prototype._deathCheck = function (lane, a, b) {
-    const L = this.deaths[lane];
-    for (let i = this.dptr[lane]; i < L.length; i++) {
+  // 입력(레인 또는 키 슬롯)이 [a,b] 동안 눌려 있었을 때 즉사 노트 창(t±100ms)과 겹치는지 검사
+  //  아무 키 모드에서는 어떤 키든 눌려 있으면 모든 즉사 노트에 해당된다
+  GameCore.prototype._deathCheck = function (slot, a, b) {
+    const any = this.anyKey, L = any ? this.deathAll : this.deaths[slot];
+    for (let i = any ? this.dptrAll : this.dptr[slot]; i < L.length; i++) {
       const d = L[i];
       if (d.st !== 0) continue;
       if (d.t - DEATH_WIN > b + EPS) break;
       if (a <= d.t + DEATH_WIN + EPS) {
         d.st = 6; this.resolved++;
-        if (this.inv) { this.immune++; this.on({ type: 'immune', lane: lane, t: b, note: d }); }
-        else { this.on({ type: 'death', lane: lane, t: b, note: d }); this._fail('death', b); return true; }
+        if (this.inv) { this.immune++; this.on({ type: 'immune', lane: d.lane, t: b, note: d }); }
+        else { this.on({ type: 'death', lane: d.lane, t: b, note: d }); this._fail('death', b); return true; }
       }
     }
     return false;
   };
-  GameCore.prototype.press = function (lane, t) {
-    if (this.failed || lane < 0 || lane >= LANES || this.down[lane]) return;
-    this.down[lane] = true; this.downSince[lane] = t;
-    if (this._deathCheck(lane, t, t)) return;
-    const L = this.lanes[lane];
+  GameCore.prototype.press = function (slot, t) {
+    if (this.failed || slot < 0 || slot >= this.nSlots || this.down[slot]) return;
+    this.down[slot] = true; this.downSince[slot] = t;
+    if (this._deathCheck(slot, t, t)) return;
+    const l0 = this.anyKey ? 0 : slot, l1 = this.anyKey ? LANES : slot + 1;
     let best = null, bd = Infinity;
-    for (let i = this.ptr[lane]; i < L.length; i++) {
-      const n = L[i];
-      if (n.st !== 0) continue;
-      const d = t - n.t;
-      if (d < -JUDGE.good - EPS) break;          // 너무 이른 입력: 무시(페널티 없음)
-      if (d > JUDGE.good + EPS) continue;
-      if (Math.abs(d) < bd) { bd = Math.abs(d); best = n; }
+    for (let lane = l0; lane < l1; lane++) {
+      const L = this.lanes[lane];
+      for (let i = this.ptr[lane]; i < L.length; i++) {
+        const n = L[i];
+        if (n.st !== 0) continue;
+        const d = t - n.t;
+        if (d < -JUDGE.good - EPS) break;          // 너무 이른 입력: 무시(페널티 없음)
+        if (d > JUDGE.good + EPS) continue;
+        const ad = Math.abs(d);
+        if (ad < bd - 1e-9) { bd = ad; best = n; }
+      }
     }
-    if (!best) { this.on({ type: 'empty', lane: lane, t: t }); return; }
+    if (!best) { this.on({ type: 'empty', lane: this.anyKey ? -1 : slot, t: t }); return; }
     const d = t - best.t, ad = Math.abs(d);
     const g = ad <= JUDGE.perfect + EPS ? 'perfect' : ad <= JUDGE.great + EPS ? 'great' : 'good';
     const fs = g === 'perfect' ? 0 : d < 0 ? -1 : 1;
     if (fs < 0) this.fast++; else if (fs > 0) this.slow++;
     best.grade = g; best.hitT = t;
-    if (best.type === 'hold') { best.st = 1; this.holding[lane] = best; this.on({ type: 'holdStart', lane: lane, t: t, note: best }); }
+    if (best.type === 'hold') { best.st = 1; this.holding[slot] = best; this.on({ type: 'holdStart', lane: best.lane, t: t, note: best }); }
     else { best.st = 2; this.resolved++; }
-    this._apply(g, lane, t, fs, best, false);
+    this._apply(g, best.lane, t, fs, best, false);
   };
-  GameCore.prototype.release = function (lane, t) {
-    if (lane < 0 || lane >= LANES || !this.down[lane]) return;
-    if (!this.failed) this._deathCheck(lane, this.downSince[lane], t);
-    this.down[lane] = false;
-    const h = this.holding[lane];
+  GameCore.prototype.release = function (slot, t) {
+    if (slot < 0 || slot >= this.nSlots || !this.down[slot]) return;
+    if (!this.failed) this._deathCheck(slot, this.downSince[slot], t);
+    this.down[slot] = false;
+    const h = this.holding[slot];
     if (h) {
-      this.holding[lane] = null;
+      this.holding[slot] = null;
       if (this.failed) return;
       if (t >= h.end - HOLD_TAIL - EPS) this._holdDone(h, t); else this._holdBreak(h, t);
     }
@@ -1833,18 +1888,23 @@ function PureLib() {
         p++;
       }
       this.ptr[lane] = p;
-      const h = this.holding[lane];
-      if (h && now >= h.end - EPS) { this.holding[lane] = null; this._holdDone(h, h.end); if (this.failed) return; }
-      if (this.down[lane] && this._deathCheck(lane, this.downSince[lane], now)) return;
-      const DL = this.deaths[lane]; let dp = this.dptr[lane];
+    }
+    for (let s = 0; s < this.nSlots; s++) {
+      const h = this.holding[s];
+      if (h && now >= h.end - EPS) { this.holding[s] = null; this._holdDone(h, h.end); if (this.failed) return; }
+      if (this.down[s] && this._deathCheck(s, this.downSince[s], now)) return;
+    }
+    const passD = function (self, DL, dp) {
       while (dp < DL.length) {
         const d = DL[dp];
         if (d.st !== 0) { dp++; continue; }
-        if (now > d.t + DEATH_WIN + DEATH_GRACE) { d.st = 5; this.resolved++; this.dodged++; this.on({ type: 'safe', lane: lane, t: now, note: d }); dp++; }
+        if (now > d.t + DEATH_WIN + DEATH_GRACE) { d.st = 5; self.resolved++; self.dodged++; self.on({ type: 'safe', lane: d.lane, t: now, note: d }); dp++; }
         else break;
       }
-      this.dptr[lane] = dp;
-    }
+      return dp;
+    };
+    if (this.anyKey) this.dptrAll = passD(this, this.deathAll, this.dptrAll);
+    else for (let lane = 0; lane < LANES; lane++) this.dptr[lane] = passD(this, this.deaths[lane], this.dptr[lane]);
     if (this.feverOn && now >= this.feverUntil) { this.feverOn = false; this.fever = 0; this.on({ type: 'feverEnd', t: now }); }
   };
   GameCore.prototype.summary = function () {
@@ -1857,36 +1917,41 @@ function PureLib() {
 
   // 입력 라우터: 키보드/터치/봇 입력이 모두 여기를 거쳐 GameCore 로 들어간다
   function InputRouter(core, onLane) {
-    this.core = core; this.onLane = onLane || null;
-    this.cnt = [0, 0, 0, 0, 0, 0, 0, 0]; this.bot = [false, false, false, false, false, false, false, false];
+    this.core = core; this.onLane = onLane || null; this.cnt = []; this.bot = [];
+    for (let s = 0; s < core.nSlots; s++) { this.cnt.push(0); this.bot.push(false); }
   }
-  InputRouter.prototype.down = function (lane, t, src) {
-    if (lane < 0 || lane >= LANES) return;
-    if (src === 'bot') { if (this.bot[lane]) return; this.bot[lane] = true; }
-    if (this.cnt[lane]++ === 0) { this.core.press(lane, t); if (this.onLane) this.onLane(lane, true, src); }
+  InputRouter.prototype.down = function (slot, t, src) {
+    if (slot < 0 || slot >= this.cnt.length) return;
+    if (src === 'bot') { if (this.bot[slot]) return; this.bot[slot] = true; }
+    if (this.cnt[slot]++ === 0) { this.core.press(slot, t); if (this.onLane) this.onLane(slot, true, src); }
   };
-  InputRouter.prototype.up = function (lane, t, src) {
-    if (lane < 0 || lane >= LANES) return;
-    if (src === 'bot') { if (!this.bot[lane]) return; this.bot[lane] = false; }
-    if (this.cnt[lane] <= 0) return;
-    if (--this.cnt[lane] === 0) { this.core.release(lane, t); if (this.onLane) this.onLane(lane, false, src); }
+  InputRouter.prototype.up = function (slot, t, src) {
+    if (slot < 0 || slot >= this.cnt.length) return;
+    if (src === 'bot') { if (!this.bot[slot]) return; this.bot[slot] = false; }
+    if (this.cnt[slot] <= 0) return;
+    if (--this.cnt[slot] === 0) { this.core.release(slot, t); if (this.onLane) this.onLane(slot, false, src); }
   };
-  // 사람 입력만 모두 해제 (봇이 누르고 있는 레인은 유지)
+  InputRouter.prototype.active = function () { let c = 0; for (let s = 0; s < this.cnt.length; s++) if (this.cnt[s] > 0) c++; return c; };
+  // 사람 입력만 모두 해제 (봇이 누르고 있는 입력은 유지)
   InputRouter.prototype.releaseHuman = function (t) {
-    for (let l = 0; l < LANES; l++) {
+    for (let l = 0; l < this.cnt.length; l++) {
       const keep = this.bot[l] ? 1 : 0;
       if (this.cnt[l] > keep) { this.cnt[l] = keep; if (!keep) { this.core.release(l, t); if (this.onLane) this.onLane(l, false, 'sys'); } }
     }
   };
 
   // 자동 플레이 봇: 채보에서 가상 키 입력 일정을 만들고 라우터에 주입
+  //  8키 모드는 레인 = 키, 아무 키 모드는 비어 있는 키 슬롯을 돌려 쓴다
   function AutoBot(chart) {
-    const ev = [];
-    for (let i = 0; i < chart.notes.length; i++) {
-      const n = chart.notes[i];
-      if (n.type === 'death') continue;
-      ev.push({ t: n.t, lane: n.lane, d: 1 });
-      ev.push({ t: n.type === 'hold' ? n.t + n.dur : n.t + BOT_TAP, lane: n.lane, d: 0 });
+    const ev = [], any = !!(chart.meta && chart.meta.input === 'any'), freeAt = [];
+    for (let s = 0; s < SLOTS; s++) freeAt.push(-1e9);
+    const ns = chart.notes.filter(function (n) { return n.type !== 'death'; }).sort(cmpNote);
+    for (let i = 0; i < ns.length; i++) {
+      const n = ns[i], up = n.type === 'hold' ? n.t + n.dur : n.t + BOT_TAP;
+      let slot = n.lane;
+      if (any) { slot = -1; for (let s = 0; s < SLOTS; s++) if (freeAt[s] <= n.t - 0.004) { slot = s; break; } if (slot < 0) continue; freeAt[slot] = up; }
+      ev.push({ t: n.t, lane: slot, d: 1 });
+      ev.push({ t: up, lane: slot, d: 0 });
     }
     ev.sort(function (a, b) { return a.t - b.t || a.d - b.d; });
     this.ev = ev; this.i = 0;
@@ -1921,7 +1986,7 @@ function PureLib() {
   }
 
   return {
-    LANES: LANES, JUDGE: JUDGE, HP: HP, DIFFS: DIFFS, DIFF_KEYS: DIFF_KEYS, LIMITS: LIMITS, DEATH_WIN: DEATH_WIN, HOLD_TAIL: HOLD_TAIL, FEVER_LEN: FEVER_LEN, BUILTIN_DEATH: BUILTIN_DEATH,
+    LANES: LANES, SLOTS: SLOTS, ANY_DIFFS: ANY_DIFFS, prof: prof, enforceIoi: enforceIoi, JUDGE: JUDGE, HP: HP, DIFFS: DIFFS, DIFF_KEYS: DIFF_KEYS, LIMITS: LIMITS, DEATH_WIN: DEATH_WIN, HOLD_TAIL: HOLD_TAIL, FEVER_LEN: FEVER_LEN, BUILTIN_DEATH: BUILTIN_DEATH,
     mulberry32: mulberry32, hashString: hashString, hashBytes: hashBytes, clamp: clamp, approachTime: approachTime, noteEnd: noteEnd, midi: midi,
     builtinSongs: builtinSongs, buildBuiltinChart: buildBuiltinChart, thinDensity: thinDensity,
     validateChart: validateChart, repairChart: repairChart, finalizeChart: finalizeChart, decorateChart: decorateChart, chartStats: chartStats, stripDeath: stripDeath,
@@ -1965,7 +2030,7 @@ const DEFAULT_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL', 'S
 const FX_LEVELS = ['high', 'mid', 'low', 'potato'];
 const DEFAULT_SETTINGS = {
   keys: DEFAULT_KEYS.slice(), speed: 8, inputOffset: 0, volMaster: 0.8, volMusic: 0.85, volSfx: 0.6, hitSound: true,
-  fx: 'high', reduceFlash: false, reduceMotion: false, death: true, invincible: false, autoplay: false, lastSong: 'neon', lastDiff: 'normal'
+  fx: 'high', reduceFlash: false, reduceMotion: false, death: true, invincible: false, autoplay: false, anyKey: true, lastSong: 'neon', lastDiff: 'normal'
 };
 // 불러온 설정의 값 검증 + 기본값 복구
 function sanitizeSettings(raw) {
@@ -1976,13 +2041,15 @@ function sanitizeSettings(raw) {
   s.speed = num(raw.speed, 1, 15, s.speed, true);
   s.inputOffset = num(raw.inputOffset, -300, 300, 0, true);
   s.volMaster = num(raw.volMaster, 0, 1, s.volMaster); s.volMusic = num(raw.volMusic, 0, 1, s.volMusic); s.volSfx = num(raw.volSfx, 0, 1, s.volSfx);
-  ['hitSound', 'reduceFlash', 'reduceMotion', 'death', 'invincible', 'autoplay'].forEach(function (k) { if (typeof raw[k] === 'boolean') s[k] = raw[k]; });
+  ['hitSound', 'reduceFlash', 'reduceMotion', 'death', 'invincible', 'autoplay', 'anyKey'].forEach(function (k) { if (typeof raw[k] === 'boolean') s[k] = raw[k]; });
   if (FX_LEVELS.indexOf(raw.fx) >= 0) s.fx = raw.fx;
   if (typeof raw.lastSong === 'string' && raw.lastSong.length < 64) s.lastSong = raw.lastSong;
   if (DIFF_KEYS.indexOf(raw.lastDiff) >= 0) s.lastDiff = raw.lastDiff;
   return s;
 }
 let settings = sanitizeSettings(null);
+function curInput() { return settings.anyKey ? 'any' : 'lane'; }
+function inputName(input) { return input === 'any' ? '아무 키' : '8키'; }
 function saveSettings() { Store.set('pulselane.settings', settings); }
 function keyLabel(code) {
   if (!code) return '?';
@@ -2003,10 +2070,11 @@ const Records = {
       if (r && typeof r.score === 'number' && isFinite(r.score) && r.score >= 0 && r.score <= 1000000 && typeof r.rank === 'string') this.data[k] = { score: Math.round(r.score), rank: r.rank.slice(0, 2), combo: Math.max(0, Math.round(+r.combo || 0)), ap: !!r.ap, fc: !!r.fc };
     }
   },
-  key: function (songId, diff, death) { return songId + '|' + diff + '|' + (death ? 1 : 0); },
-  get: function (songId, diff, death) { return this.data[this.key(songId, diff, death)] || null; },
-  submit: function (songId, diff, death, sum) {
-    const k = this.key(songId, diff, death), old = this.data[k];
+  // 8키 모드 기록은 기존 키 그대로, 아무 키 모드는 '|any' 를 붙여 따로 저장
+  key: function (songId, diff, death, input) { return songId + '|' + diff + '|' + (death ? 1 : 0) + (input === 'any' ? '|any' : ''); },
+  get: function (songId, diff, death, input) { return this.data[this.key(songId, diff, death, input)] || null; },
+  submit: function (songId, diff, death, input, sum) {
+    const k = this.key(songId, diff, death, input), old = this.data[k];
     if (old && old.score >= sum.score) { if (sum.maxCombo > old.combo) { old.combo = sum.maxCombo; Store.set('pulselane.records', this.data); } return false; }
     this.data[k] = { score: sum.score, rank: sum.rank, combo: Math.max(sum.maxCombo, old ? old.combo : 0), ap: sum.allPerfect, fc: sum.fullCombo };
     Store.set('pulselane.records', this.data);
@@ -2667,7 +2735,8 @@ const R = {
           const pu = rf || rm ? 0.6 : 0.5 + 0.5 * Math.sin(now * 28);
           g.strokeStyle = 'rgba(255,70,95,' + (0.45 + 0.5 * pu) + ')'; g.lineWidth = 2.5;
           g.beginPath(); g.arc(x + L.laneW / 2, y, ds * (0.62 + 0.14 * pu), 0, Math.PI * 2); g.stroke();
-          g.fillStyle = 'rgba(255,40,70,' + (0.18 + 0.22 * pu) + ')'; g.fillRect(x + 1, L.judgeY - 7, L.laneW - 2, 14);
+          g.fillStyle = 'rgba(255,40,70,' + (0.18 + 0.22 * pu) + ')';
+          if (G.anyKey) g.fillRect(L.fx, L.judgeY - 7, L.fw, 14); else g.fillRect(x + 1, L.judgeY - 7, L.laneW - 2, 14);   // 아무 키 모드: 판정선 전체가 위험
         }
         g.globalAlpha = 1; continue;
       }
@@ -2700,7 +2769,14 @@ const R = {
     const ky = L.judgeY + 14, kh = Math.min(34, H - ky - 8);
     if (kh >= 14) {
       g.font = '700 ' + Math.min(15, kh * 0.5) + 'px ' + FONT;
-      for (let i = 0; i < LANES; i++) {
+      if (G.anyKey) {                                     // 아무 키 모드: 넓은 입력 바 하나
+        const on = G.router && G.router.active() > 0, x = L.fx + 5, w = L.fw - 10;
+        rrect(g, x, ky, w, kh, 8);
+        if (on) { g.fillStyle = S.lineGrad; g.fill(); g.fillStyle = '#05060f'; }
+        else { g.fillStyle = 'rgba(10,13,34,.8)'; g.fill(); g.strokeStyle = 'rgba(160,170,255,.45)'; g.lineWidth = 1; g.stroke(); g.fillStyle = 'rgba(220,225,255,.85)'; }
+        g.fillText(on && G.router.active() > 1 ? '× ' + G.router.active() : '아무 키 · 화면 터치', x + w / 2, ky + kh / 2 + 1);
+      }
+      else for (let i = 0; i < LANES; i++) {
         const x = this.laneX(i) + 5, w = L.laneW - 10;
         rrect(g, x, ky, w, kh, 6);
         if (this.lit[i]) { g.fillStyle = rgba(this.col[i], 0.85); g.fill(); g.fillStyle = '#05060f'; }
@@ -2906,10 +2982,11 @@ const Songs = {
   builtin: Pure.builtinSongs(), user: [], cache: new Map(),
   all: function () { return this.builtin.concat(this.user); },
   byId: function (id) { const a = this.all(); for (let i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; },
-  chart: function (song, diff) {
-    if (!song.builtin) return song.charts[diff];
-    const k = song.id + '|' + diff;
-    if (!this.cache.has(k)) this.cache.set(k, Pure.buildBuiltinChart(song, diff));
+  chart: function (song, diff, input) {
+    input = input || curInput();
+    if (!song.builtin) return (input === 'any' ? song.chartsAny : song.charts)[diff];
+    const k = song.id + '|' + diff + '|' + input;
+    if (!this.cache.has(k)) this.cache.set(k, Pure.buildBuiltinChart(song, diff, input));
     return this.cache.get(k);
   },
   stats: function (song, diff) {
@@ -2931,9 +3008,9 @@ const Songs = {
     if (Math.abs(p.bpm - an.tempo.bpm) < 0.02 && Math.abs(p.offset - an.tempo.offset) < 0.004) return an.tempo.conf;
     return Pure.gridFit(an.onsets, p.bpm, p.offset, an.duration).conf;
   },
-  genCharts: function (an, p, seed) {
+  genCharts: function (an, p, seed, input) {
     const out = {}, conf = this.effConf(an, p);
-    for (let i = 0; i < DIFF_KEYS.length; i++) out[DIFF_KEYS[i]] = Pure.generateChart(an, { diff: DIFF_KEYS[i], bpm: p.bpm, offset: p.offset, mode: p.mode, confidence: conf, sens: p.sens, seed: seed });
+    for (let i = 0; i < DIFF_KEYS.length; i++) out[DIFF_KEYS[i]] = Pure.generateChart(an, { diff: DIFF_KEYS[i], bpm: p.bpm, offset: p.offset, mode: p.mode, confidence: conf, sens: p.sens, seed: seed, input: input || 'lane' });
     return out;
   },
   defaultParams: function (an) { return { bpm: an.tempo.bpm, offset: an.tempo.offset, mode: an.tempo.conf === 'low' ? 'raw' : 'grid', sens: 50, sync: 0 }; },
@@ -2947,11 +3024,12 @@ const Songs = {
     const seed = (m.seed >>> 0) || Pure.hashString(m.id);
     const song = { id: m.id, title: String(m.name || '이름 없는 곡').slice(0, 60), artist: '내 음원', bpm: params.bpm, duration: m.an.duration, builtin: false, an: m.an, params: params, seed: seed,
       size: m.size || 0, added: m.added || 0, persisted: !!m.persisted, color: hslHex(seed % 360, 0.9, 0.62), color2: '#8A5CFF', gain: m.an.playGain || 1, charts: null };
-    let ok = m.charts && DIFF_KEYS.every(function (k) { const c = m.charts[k]; return c && Array.isArray(c.notes) && c.duration > 0 && Pure.validateChart(c, { diff: k }).length === 0; });
-    song.charts = ok ? m.charts : this.genCharts(m.an, params, seed);
+    const valid = function (set, input) { return set && DIFF_KEYS.every(function (k) { const c = set[k]; return c && Array.isArray(c.notes) && c.duration > 0 && ((c.meta && c.meta.input) === 'any') === (input === 'any') && Pure.validateChart(c, { diff: k, input: input }).length === 0; }); };
+    song.charts = valid(m.charts, 'lane') ? m.charts : this.genCharts(m.an, params, seed, 'lane');
+    song.chartsAny = valid(m.chartsAny, 'any') ? m.chartsAny : this.genCharts(m.an, params, seed, 'any');
     return song;
   },
-  toMeta: function (s) { return { id: s.id, name: s.title, size: s.size, added: s.added, seed: s.seed, an: s.an, params: s.params, charts: s.charts, persisted: s.persisted }; },
+  toMeta: function (s) { return { id: s.id, name: s.title, size: s.size, added: s.added, seed: s.seed, an: s.an, params: s.params, charts: s.charts, chartsAny: s.chartsAny, persisted: s.persisted }; },
   loadUser: function (metas) {
     this.user = [];
     for (let i = 0; i < metas.length; i++) { try { const s = this.fromMeta(metas[i]); if (s && !this.byId(s.id)) this.user.push(s); } catch (e) { console.warn('내 음원 로드 실패', e); } }
@@ -3013,20 +3091,21 @@ const Metro = {
 const Game = {
   state: 'idle', sid: 0, opt: null, song: null, diff: 'normal', chart: null, core: null, router: null, bot: null,
   auto: false, inv: false, death: true, preview: false, approach: 1, endT: 1, visStart: 0, pausePos: 0, resumeTarget: null, resumed: false,
-  pointers: new Map(), keyHeld: [], deaths: [], dwi: 0, failLane: -1, buffer: null, gain: 1, cdShown: -1,
+  pointers: new Map(), keyHeld: [], keySlot: new Map(), anyKey: false, input: 'lane', deaths: [], dwi: 0, failLane: -1, buffer: null, gain: 1, cdShown: -1,
   active: function () { return this.state !== 'idle'; },
   start: function (opt) {
     const self = this;
     this.sid++; this.opt = opt; this.song = opt.song; this.diff = opt.diff; this.chart = opt.chart; this.buffer = opt.buffer;
     this.auto = !!opt.auto; this.inv = !!opt.inv; this.death = !!opt.death; this.preview = !!opt.preview; this.gain = opt.gain == null ? 1 : opt.gain;
     this.core = new Pure.GameCore(opt.chart, { diff: opt.diff, invincible: this.inv, onEvent: function (e) { self.onCore(e); } });
-    this.router = new Pure.InputRouter(this.core, function (lane, on) { R.lit[lane] = on; });
+    this.anyKey = this.core.anyKey; this.input = this.anyKey ? 'any' : 'lane';
+    this.router = new Pure.InputRouter(this.core, function (lane, on) { if (!self.anyKey) R.lit[lane] = on; });
     this.bot = this.auto ? new Pure.AutoBot(opt.chart) : null;
     this.approach = Pure.approachTime(settings.speed);
     let last = 0; for (let i = 0; i < this.core.notes.length; i++) if (this.core.notes[i].end > last) last = this.core.notes[i].end;
     this.endT = Math.max(1, Math.min(this.buffer.duration, last > 0 ? last + 4 : this.buffer.duration));
     this.deaths = this.core.notes.filter(function (n) { return n.type === 'death'; }); this.dwi = 0;
-    this.visStart = 0; this.resumeTarget = null; this.resumed = false; this.failLane = -1; this.pointers.clear(); this.keyHeld = [];
+    this.visStart = 0; this.resumeTarget = null; this.resumed = false; this.failLane = -1; this.pointers.clear(); this.keyHeld = []; this.keySlot.clear();
     AudioEngine.offsetSec = (settings.inputOffset + (opt.sync || 0)) / 1000;
     R.resetFx(); R.setTheme(this.song.color || '#00E5FF');
     Metro.on = !!opt.metro; Metro.reset();
@@ -3076,17 +3155,25 @@ const Game = {
   },
   hideCountdown: function () { this.cdShown = -1; $('countdown').classList.remove('show'); },
   songNow: function (e) { return AudioEngine.songTime(evTime(e)); },
+  // 아무 키 모드: 비어 있는 키 슬롯 하나를 배정
+  allocSlot: function () {
+    const used = {};
+    this.keySlot.forEach(function (s) { used[s] = 1; }); this.pointers.forEach(function (s) { used[s] = 1; });
+    for (let s = 0; s < this.router.cnt.length; s++) if (!used[s] && this.router.cnt[s] === 0) return s;
+    return -1;
+  },
   pause: function () {
     if (this.state !== 'playing') return;
     const now = AudioEngine.songTime(performance.now());
     this.pausePos = this.resumeTarget != null ? this.resumeTarget : now;
     AudioEngine.stopSong(0);
-    this.router.releaseHuman(now); this.pointers.clear(); this.keyHeld = [];
+    this.router.releaseHuman(now); this.pointers.clear(); this.keyHeld = []; this.keySlot.clear();
     this.resumeTarget = null; this.hideCountdown();
     this.state = 'paused';
     const ps = $('pause-state'); ps.innerHTML = '';
     const add = function (txt, cls) { const b = document.createElement('span'); b.className = 'badge ' + cls; b.textContent = txt; ps.appendChild(b); };
     add(this.song.title + ' · ' + DIFFS[this.diff].name, 'cy');
+    add('입력: ' + inputName(this.input), 'cy');
     add('즉사 노트 ' + (this.death ? 'ON' : 'OFF'), this.death ? 'red' : '');
     add('무적 ' + (this.inv ? 'ON' : 'OFF'), this.inv ? 'gold' : '');
     add('자동 플레이 ' + (this.auto ? 'ON' : 'OFF'), this.auto ? 'gold' : '');
@@ -3108,7 +3195,7 @@ const Game = {
     this.sid++; AudioEngine.stopSong(0); Metro.on = false;
     $('pause').classList.remove('show'); this.hideCountdown();
     for (let i = 0; i < LANES; i++) R.lit[i] = false;
-    this.pointers.clear(); this.keyHeld = [];
+    this.pointers.clear(); this.keyHeld = []; this.keySlot.clear();
     this.state = 'idle';
   },
   quit: function () {
@@ -3134,7 +3221,7 @@ const Game = {
   showResult: function () {
     const sum = this.core.summary(), assist = this.auto || this.inv, song = this.song;
     let isNew = false;
-    if (!assist && !sum.failed && !this.preview) isNew = Records.submit(song.id, this.diff, this.death, sum);
+    if (!assist && !sum.failed && !this.preview) isNew = Records.submit(song.id, this.diff, this.death, this.input, sum);
     this.lastSummary = sum;
     AudioEngine.stopSong(0); Metro.on = false; this.state = 'idle';
     for (let i = 0; i < LANES; i++) R.lit[i] = false;
@@ -3150,6 +3237,7 @@ const Game = {
     if (assist) badge('보조 모드 사용(기록 제외)' + ' · ' + [this.inv ? '무적' : '', this.auto ? '자동 플레이' : ''].filter(Boolean).join('+'), 'gold');
     if (this.preview) badge('미리보기', '');
     badge('즉사 노트 ' + (this.death ? 'ON' : 'OFF'), '');
+    badge('입력: ' + inputName(this.input), '');
     const cells = [['PERFECT', sum.counts.perfect, 'c-perfect'], ['GREAT', sum.counts.great, 'c-great'], ['GOOD', sum.counts.good, 'c-good'], ['MISS', sum.counts.miss, 'c-miss'],
       ['최대 콤보', sum.maxCombo, ''], ['FAST', sum.fast, ''], ['SLOW', sum.slow, ''], ['즉사 노트 회피', sum.deathTotal ? sum.dodged + ' / ' + sum.deathTotal : '-', '']];
     $('res-grid').innerHTML = cells.map(function (c) { return '<div class="cell ' + c[2] + '"><div class="k">' + c[0] + '</div><div class="v">' + esc(c[1]) + '</div></div>'; }).join('');
@@ -3165,6 +3253,13 @@ const Game = {
 function evTime(e) {
   const pn = performance.now(); const ts = e && e.timeStamp;
   return ts > 0 && Math.abs(ts - pn) < 2000 ? ts : pn;
+}
+const ANYKEY_SKIP = { Escape: 1, Tab: 1, ShiftLeft: 1, ShiftRight: 1, ControlLeft: 1, ControlRight: 1, AltLeft: 1, AltRight: 1, MetaLeft: 1, MetaRight: 1, OSLeft: 1, OSRight: 1,
+  ContextMenu: 1, CapsLock: 1, NumLock: 1, ScrollLock: 1, PrintScreen: 1, Pause: 1, Fn: 1, Lang1: 1, Lang2: 1, HangulMode: 1, Hanja: 1, KanaMode: 1, Convert: 1, NonConvert: 1 };
+function anyKeyOk(e) {
+  const c = e.code || '';
+  if (!c || ANYKEY_SKIP[c] || /^F\d+$/.test(c) || /^Browser|^Audio|^Media|^Launch/.test(c)) return false;
+  return !(e.ctrlKey || e.metaKey || e.altKey);
 }
 function menuFocusables() {
   const root = Modal.isOpen() ? $('modal') : $('pause').classList.contains('show') ? $('pause') : Loading.isOpen() ? $('loading') : $('scr-' + Screens.cur);
@@ -3182,6 +3277,14 @@ const Input = {
       if (Screens.cur === 'play') {
         if (e.code === 'Escape') { e.preventDefault(); if (e.repeat) return; if (Game.state === 'playing') Game.pause(); else if (Game.state === 'paused') Game.resume(); return; }
         if (Game.state === 'paused') { Input.nav(e); return; }
+        if (Game.anyKey) {                       // 아무 키 모드: 조합키/시스템 키를 뺀 모든 키
+          if (!anyKeyOk(e)) return;
+          e.preventDefault();
+          if (e.repeat || Game.state !== 'playing' || Game.auto || Game.keySlot.has(e.code)) return;
+          const s = Game.allocSlot(); if (s < 0) return;
+          Game.keySlot.set(e.code, s); Game.router.down(s, Game.songNow(e), 'key');
+          return;
+        }
         const lane = settings.keys.indexOf(e.code);
         if (lane >= 0) {
           e.preventDefault();
@@ -3196,6 +3299,7 @@ const Input = {
     });
     window.addEventListener('keyup', function (e) {
       if (Screens.cur !== 'play') return;
+      if (Game.anyKey) { const s = Game.keySlot.get(e.code); if (s !== undefined) { Game.keySlot.delete(e.code); if (Game.router) Game.router.up(s, Game.songNow(e), 'key'); } return; }
       const lane = settings.keys.indexOf(e.code);
       if (lane >= 0 && Game.keyHeld[lane]) { Game.keyHeld[lane] = false; if (Game.router) Game.router.up(lane, Game.songNow(e), 'key'); }
     });
@@ -3203,8 +3307,9 @@ const Input = {
       if (Screens.cur !== 'play') return;
       e.preventDefault(); AudioEngine.unlock();
       if (Game.state !== 'playing' || Game.auto) return;
-      const lane = R.laneAt(e.clientX);
-      if (lane < 0 || Game.pointers.has(e.pointerId)) return;
+      if (Game.pointers.has(e.pointerId)) return;
+      const lane = Game.anyKey ? Game.allocSlot() : R.laneAt(e.clientX);   // 아무 키 모드: 화면 어디를 눌러도 됨
+      if (lane < 0) return;
       Game.pointers.set(e.pointerId, lane);
       try { cv.setPointerCapture(e.pointerId); } catch (err) {}
       Game.router.down(lane, Game.songNow(e), 'ptr');
@@ -3274,7 +3379,7 @@ const Select = {
     this.songId = settings.lastSong; this.diff = settings.lastDiff;
     $('btn-play').onclick = function () { const s = self.song(); if (s) startGame(s, self.diff); };
     const chip = function (id, key) { $(id).onclick = function () { settings[key] = !settings[key]; saveSettings(); self.render(); }; };
-    chip('chip-death', 'death'); chip('chip-inv', 'invincible'); chip('chip-auto', 'autoplay');
+    chip('chip-death', 'death'); chip('chip-inv', 'invincible'); chip('chip-auto', 'autoplay'); chip('chip-input', 'anyKey');
     $('file-input').addEventListener('change', function (e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) Importer.importFile(f); });
   },
   song: function () { return Songs.byId(this.songId) || Songs.builtin[0]; },
@@ -3291,7 +3396,7 @@ const Select = {
     const sec = function (t) { const d = document.createElement('div'); d.className = 'sel-sec'; d.textContent = t; list.appendChild(d); };
     const item = function (s) {
       const b = document.createElement('button'); b.className = 'song' + (s.id === cur.id ? ' sel' : ''); b.style.setProperty('--c', s.color);
-      const rec = Records.get(s.id, self.diff, settings.death);
+      const rec = Records.get(s.id, self.diff, settings.death, curInput());
       b.innerHTML = '<div class="sinfo"><div class="st">' + esc(s.title) + '</div><div class="sa">' + esc(s.artist) + ' · ' + (Math.round(s.bpm * 10) / 10) + ' BPM · ' + fmtTime(s.duration) + '</div></div><div class="srank rank-' + (rec ? rec.rank : '') + '">' + (rec ? rec.rank : '') + '</div>';
       b.onclick = function () { AudioEngine.unlock(); self.select(s.id); };
       b.ondblclick = function () { startGame(s, self.diff); };
@@ -3309,7 +3414,7 @@ const Select = {
     $('d-meta').textContent = cur.artist + ' · ' + (Math.round(cur.bpm * 10) / 10) + ' BPM · ' + fmtTime(cur.duration) + (cur.keyName ? ' · ' + cur.keyName : '') + (cur.desc ? ' — ' + cur.desc : '');
     const dd = $('d-diffs'); dd.innerHTML = '';
     DIFF_KEYS.forEach(function (k) {
-      const st = Songs.stats(cur, k), rec = Records.get(cur.id, k, settings.death);
+      const st = Songs.stats(cur, k), rec = Records.get(cur.id, k, settings.death, curInput());
       const b = document.createElement('button'); b.className = 'diff' + (k === self.diff ? ' sel' : ''); b.setAttribute('aria-pressed', k === self.diff ? 'true' : 'false');
       b.innerHTML = '<div class="dn">' + DIFFS[k].name + '</div><div class="dl">Lv.' + Math.max(1, Math.round(st.avgNps * 2)) + ' · ' + st.notes + ' 노트' + (st.deaths && settings.death ? ' · 즉사 ' + st.deaths : '') + '</div>' +
         '<div class="ds">' + (rec ? fmtScore(rec.score) + '<span class="dr rank-' + rec.rank + '">' + rec.rank + '</span>' + (rec.ap ? ' <span class="badge gold">AP</span>' : rec.fc ? ' <span class="badge gold">FC</span>' : '') : '<span style="color:var(--dim)">기록 없음</span>') + '</div>';
@@ -3338,9 +3443,11 @@ const Select = {
       });
     }
     const assist = settings.invincible || settings.autoplay;
-    $('d-note').textContent = '최고 기록은 즉사 노트 ON/OFF를 따로 저장해요 (현재: ' + (settings.death ? 'ON' : 'OFF') + ').' + (assist ? ' 보조 모드 사용 중에는 기록되지 않아요.' : '');
+    $('d-note').textContent = (settings.anyKey ? '아무 키 모드: 아무 키나 화면 어디든 눌러 노트를 쳐요. 동시치기는 키 여러 개를 함께, 즉사 노트가 지날 땐 아무것도 누르지 마세요. ' : '8키 모드: 레인마다 정해진 키(A S D F J K L ;)로 쳐요. ') +
+      '최고 기록은 입력 방식과 즉사 노트 ON/OFF별로 따로 저장해요 (현재: ' + inputName(curInput()) + ' · 즉사 ' + (settings.death ? 'ON' : 'OFF') + ').' + (assist ? ' 보조 모드 사용 중에는 기록되지 않아요.' : '');
     const chip = function (id, on) { const el = $(id); el.setAttribute('aria-pressed', on ? 'true' : 'false'); el.querySelector('b').textContent = on ? 'ON' : 'OFF'; };
     chip('chip-death', settings.death); chip('chip-inv', settings.invincible); chip('chip-auto', settings.autoplay);
+    $('chip-input').setAttribute('aria-pressed', settings.anyKey ? 'true' : 'false'); $('chip-input').querySelector('b').textContent = inputName(curInput());
     $('btn-play').textContent = settings.autoplay ? '자동 플레이 시작' : '플레이';
   },
   // 미니 프리뷰: 선택한 채보가 흐르는 미니 레인 + 스펙트럼
@@ -3416,11 +3523,12 @@ const Settings = {
     const nudge = function (d) { settings.inputOffset = Pure.clamp(settings.inputOffset + d, -300, 300); off.inp.value = settings.inputOffset; off.val.textContent = (settings.inputOffset > 0 ? '+' : '') + settings.inputOffset + 'ms'; saveSettings(); };
     btn(off.ct, '−1', '', function () { nudge(-1); }); btn(off.ct, '+1', '', function () { nudge(1); });
     btn(off.ct, '보정 화면', '', function () { Screens.show('calib'); });
+    sw('아무 키 모드', '켜면 아무 키나 화면 어디를 눌러도 가장 가까운 노트를 쳐요. 대신 채보가 더 촘촘하고 어려워요. 끄면 레인별 8키 모드.', 'anyKey');
     sw('즉사 노트', '누르면 즉시 실패하는 붉은 가시 노트. 끄면 채보에서 모두 제거돼요.', 'death');
     sw('무적', '체력이 줄지 않고 즉사 노트도 무시해요. 기록은 저장되지 않아요.', 'invincible');
     sw('자동 플레이', '봇이 대신 연주해요. 기록은 저장되지 않아요.', 'autoplay');
     grp('키 설정');
-    const kc = row('레인 키', '바꿀 키를 누른 뒤 새 키를 입력하세요. Esc로 취소.');
+    const kc = row('레인 키 (8키 모드)', '바꿀 키를 누른 뒤 새 키를 입력하세요. Esc로 취소.');
     const keys = document.createElement('div'); keys.className = 'keys';
     for (let i = 0; i < LANES; i++) (function (i) {
       const b = document.createElement('button'); b.className = 'keycap' + (Rebind.waiting === i ? ' wait' : ''); b.textContent = Rebind.waiting === i ? '…' : keyLabel(settings.keys[i]);
@@ -3621,7 +3729,7 @@ const Importer = {
     if (dup) { Select.select(id); toast('이미 추가된 음원이에요.'); return; }
     const name = String(file.name || '내 음원').replace(/\.[A-Za-z0-9]{1,5}$/, '').slice(0, 60) || '내 음원';
     const song = Songs.fromMeta({ id: id, name: name, size: r.size, added: Date.now(), seed: r.seed, an: r.an, params: null, charts: null, persisted: false });
-    if (!song || !DIFF_KEYS.some(function (k) { return song.charts[k].notes.length > 0; })) { await alertModal('음원을 추가할 수 없어요', IMPORT_ERR.nochart); return; }
+    if (!song || !DIFF_KEYS.some(function (k) { return song.charts[k].notes.length > 0 || song.chartsAny[k].notes.length > 0; })) { await alertModal('음원을 추가할 수 없어요', IMPORT_ERR.nochart); return; }
     const pr = await SongDB.put(Songs.toMeta(song), file);       // 원본은 파일(Blob) 그대로 저장 — 메모리에 복사본을 두지 않음
     song.persisted = pr.persisted;
     SongAudio.put(song, r.buffer);
@@ -3672,7 +3780,7 @@ const Analyze = {
   },
   open: function (song) {
     Preview.stop();
-    this.song = song; this.p = Object.assign({}, song.params); this.charts = song.charts; this.dirty = false; this.pos = 0; this.taps = []; this.metro = false; Metro.on = false;
+    this.song = song; this.p = Object.assign({}, song.params); this.all = { lane: song.charts, any: song.chartsAny }; this.charts = this.all[curInput()]; this.dirty = false; this.pos = 0; this.taps = []; this.metro = false; Metro.on = false;
     this.conf = Songs.effConf(song.an, this.p); this.diff = Select.diff;
     R.setTheme(song.color);
     Screens.show('analyze'); this.render();
@@ -3688,7 +3796,8 @@ const Analyze = {
     if (!this.song) return;
     try {
       this.conf = Songs.effConf(this.song.an, this.p);
-      this.charts = Songs.genCharts(this.song.an, this.p, this.song.seed);
+      this.all = { lane: Songs.genCharts(this.song.an, this.p, this.song.seed, 'lane'), any: Songs.genCharts(this.song.an, this.p, this.song.seed, 'any') };
+      this.charts = this.all[curInput()];
     } catch (e) { console.error(e); toast('채보 생성 중 문제가 발생했어요.'); return; }
     if (markDirty) this.dirty = true;
     Metro.bpm = this.p.bpm; Metro.offset = this.p.offset; Metro.sync = this.p.sync;
@@ -3722,7 +3831,7 @@ const Analyze = {
       if (!st.notes) notes.push(DIFFS[k].name + ': 노트가 없어요. 민감도를 올려보세요.');
     }
     $('an-stats').innerHTML = rows;
-    $('an-note').textContent = (notes.length ? notes.join(' · ') + ' — ' : '') + '파형을 눌러 들어볼 위치를 고를 수 있어요. 값을 바꾸면 채보가 다시 만들어지고, "저장"을 눌러야 반영돼요.' + (s.persisted ? '' : ' (이 음원은 이번 세션에만 유지돼요)');
+    $('an-note').textContent = '표의 채보: ' + inputName(curInput()) + ' 모드. ' + (notes.length ? notes.join(' · ') + ' — ' : '') + '파형을 눌러 들어볼 위치를 고를 수 있어요. 값을 바꾸면 채보가 다시 만들어지고, "저장"을 눌러야 반영돼요.' + (s.persisted ? '' : ' (이 음원은 이번 세션에만 유지돼요)');
     this.drawWave();
   },
   // 파형 + 노트 밀도 오버레이
@@ -3778,8 +3887,8 @@ const Analyze = {
   },
   save: function () {
     const s = this.song; if (!s) return;
-    s.params = Object.assign({}, this.p); s.charts = this.charts; s.bpm = this.p.bpm; this.dirty = false;
-    DIFF_KEYS.forEach(function (k) { delete s.charts[k]._st; });
+    s.params = Object.assign({}, this.p); s.charts = this.all.lane; s.chartsAny = this.all.any; s.bpm = this.p.bpm; this.dirty = false;
+    DIFF_KEYS.forEach(function (k) { delete s.charts[k]._st; delete s.chartsAny[k]._st; });
     SongDB.putMeta(Songs.toMeta(s)).then(function (ok) { toast(ok ? '보정값과 채보를 저장했어요.' : '이번 세션에 적용했어요. (저장 공간 없음)'); });
     this.render();
   },
@@ -4054,6 +4163,52 @@ async function runSelfTests(report) {
     T('수동 입력도 60Hz/120Hz 에서 동일 판정', r60.score === r120.score && r60.counts.great === r120.counts.great && r60.counts.miss === r120.counts.miss, r60.score + ' / ' + r120.score);
   });
 
+  // ---- 7b. 아무 키 모드 ----
+  await safe('아무 키 모드', async function () {
+    const dr = { easy: [3, 4], normal: [6, 8], hard: [10, 14] }, songs = P.builtinSongs();
+    for (let si = 0; si < songs.length; si++) for (let di = 0; di < 3; di++) {
+      const s = songs[si], d = D[di], A = P.ANY_DIFFS[d], c = P.buildBuiltinChart(s, d, 'any'), st = P.chartStats(c), lane = P.chartStats(P.buildBuiltinChart(s, d));
+      const ts = []; c.notes.forEach(function (x) { if (x.type !== 'death' && (!ts.length || x.t - ts[ts.length - 1] > 1e-3)) ts.push(x.t); });
+      let mi = Infinity; for (let i = 1; i < ts.length; i++) mi = Math.min(mi, ts[i] - ts[i - 1]);
+      T('아무 키 채보 검증기 통과: ' + s.title + ' / ' + A.name, c.meta.input === 'any' && P.validateChart(c).length === 0 && c.meta.repaired === 0 && mi >= A.minIoi - 1e-6,
+        '노트 ' + st.notes + ' (홀드 ' + st.holds + ' 동타 ' + st.chords + ' 즉사 ' + st.deaths + '), 최소 간격 ' + Math.round(mi * 1000) + 'ms');
+      T('아무 키 채보가 8키보다 촘촘함 + 밀도 목표: ' + s.title + ' / ' + A.name, st.avgNps > lane.avgNps && st.avgNps >= A.avg[0] && st.avgNps <= A.avg[1] && st.maxNps <= A.tgtMaxNps && st.deaths >= dr[d][0] && st.deaths <= dr[d][1],
+        '평균 ' + st.avgNps.toFixed(2) + ' (8키 ' + lane.avgNps.toFixed(2) + ') 최대 ' + st.maxNps);
+      const r = P.simulate(c, { auto: true }), r2 = P.simulate(c, { auto: true, fps: 120 }), r3 = P.simulate(c, { auto: true, fps: 37, jitter: 5 });
+      T('아무 키 자동 플레이 완주: ' + s.title + ' / ' + A.name, !r.failed && r.score === 1000000 && r.counts.perfect === r.units && r.dodged === st.deaths && r2.score === 1000000 && r3.score === 1000000, '점수 ' + r.score + ', Miss ' + r.counts.miss);
+      await tick();
+    }
+    const any = function (notes, diff) { return P.decorateChart({ notes: notes, duration: 30, diff: diff || 'normal', bpm: 120, offset: 0, meta: { input: 'any' } }); };
+    const k = function (t, slot, len) { return pr(t, slot, len); };
+    let c = any([tap(1, 6), tap(2, 0), tap(2, 5), tap(3, 2)]);
+    let r = run(c, k(1, 9).concat(k(2, 3)).concat(k(2, 11)).concat(k(3, 9)));
+    T('아무 키: 어떤 키로든 가장 가까운 노트 판정, 동타는 키 2개', r.counts.perfect === 4 && r.score === 1000000 && r.core.nSlots === P.SLOTS);
+    r = run(c, k(1, 9).concat(k(2, 3)).concat(k(3, 9)));
+    T('아무 키: 동타에 키 1개만 누르면 1개 Miss', r.counts.perfect === 3 && r.counts.miss === 1);
+    c = any([{ t: 2, lane: 4, type: 'hold', dur: 1 }, tap(2.5, 1)]);
+    r = run(c, k(2, 0, 1).concat(k(2.5, 7)));
+    T('아무 키: 홀드를 누른 키로 유지하면서 다른 키로 탭', r.counts.perfect === 3 && r.breaks === 0 && r.score === 1000000);
+    r = run(c, k(2, 0, 0.4).concat(k(2.5, 7)));
+    T('아무 키: 홀드한 키를 일찍 떼면 BREAK (다른 키 입력과 무관)', r.breaks === 1 && r.counts.perfect === 2);
+    c = any([tap(1, 0), { t: 7, lane: 3, type: 'death' }, tap(9, 0)]);
+    const base = k(1, 0).concat(k(9, 0));
+    r = run(c, base);
+    T('아무 키 즉사: 아무것도 안 누르면 안전 통과', !r.failed && r.dodged === 1 && r.score === 1000000);
+    r = run(c, base.concat(k(7.05, 12)));
+    T('아무 키 즉사: 창 안에서 어떤 키든 누르면 FAIL', r.failed && r.failReason === 'death');
+    r = run(c, base.concat(k(6.4, 5, 0.65)));
+    T('아무 키 즉사: 다른 키를 누르고 있던 경우도 FAIL', r.failed && r.failReason === 'death');
+    r = run(c, base.concat(k(6.4, 5, 1.2)), { invincible: true });
+    T('아무 키 즉사: 무적이면 영향 없음', !r.failed && r.immune === 1 && r.hp === 100);
+    const bad = { notes: [{ t: 7, lane: 3, type: 'death' }, tap(7.2, 6)], duration: 30, diff: 'normal', meta: { input: 'any' } };
+    T('검증기(아무 키): 즉사 노트 ±300ms 안의 다른 레인 노트도 검출', P.validateChart(bad).some(function (v) { return v.code === 'death-clear'; }) && P.validateChart(Object.assign({}, bad, { meta: {} })).length === 0);
+    const fast = { notes: [tap(1, 0), tap(1.05, 5), tap(2, 1)], duration: 30, diff: 'hard', meta: { input: 'any' } };
+    T('검증기(아무 키): 연속 입력 간격(minIoi) 위반 검출·수리', P.validateChart(fast).some(function (v) { return v.code === 'ioi'; }) && P.validateChart(P.finalizeChart(fast, null, null)).length === 0);
+    T('즉사 OFF 해도 아무 키 표시 유지', P.stripDeath(P.buildBuiltinChart(songs[0], 'easy', 'any')).meta.input === 'any');
+    T('8키 내장 채보는 기존과 동일(시드 분리)', JSON.stringify(P.buildBuiltinChart(songs[1], 'normal').notes) === JSON.stringify(P.buildBuiltinChart(songs[1], 'normal', 'lane').notes) && P.buildBuiltinChart(songs[1], 'normal').meta.input === 'lane');
+    if (HAS_DOM) T('기록 키: 입력 방식별 분리', Records.key('neon', 'hard', true, 'any') !== Records.key('neon', 'hard', true, 'lane') && Records.key('neon', 'hard', true, 'lane') === 'neon|hard|1');
+  });
+
   // ---- 8. 검증기 / 수리 / 설정 검증 ----
   await safe('검증기', async function () {
     const bad = { duration: 20, diff: 'normal', meta: {}, notes: [tap(3, 0), tap(1, 0), tap(1.05, 0), { t: 2, lane: 9, type: 'tap' }, { t: 4, lane: 2, type: 'hold', dur: 9 }, { t: 5, lane: 2, type: 'tap' }, { t: 19.9, lane: 1, type: 'tap' },
@@ -4067,8 +4222,8 @@ async function runSelfTests(report) {
     T('검증기: 초당 노트 수 상한(Easy 5) 검출 및 수리', P.validateChart(dense).some(function (x) { return x.code === 'nps'; }) && P.validateChart(P.finalizeChart(dense, null, null)).length === 0);
     const nod = { duration: 30, diff: 'hard', meta: { allowDeath: false }, notes: [tap(1, 0), { t: 8, lane: 3, type: 'death' }] };
     T('검증기: 즉사 금지 채보의 즉사 노트 검출·제거', P.validateChart(nod).length > 0 && P.finalizeChart(nod, null, null).notes.length === 1);
-    const s = sanitizeSettings({ keys: ['KeyA', 'KeyA', 1, 2, 3, 4, 5, 6], speed: 99, inputOffset: 'x', volMaster: -3, fx: 'ultra', death: 'no', reduceMotion: true });
-    T('설정 값 검증 + 기본값 복구', s.keys.join() === DEFAULT_KEYS.join() && s.speed === 15 && s.inputOffset === 0 && s.volMaster === 0 && s.fx === 'high' && s.death === true && s.reduceMotion === true && sanitizeSettings('garbage').speed === 8);
+    const s = sanitizeSettings({ keys: ['KeyA', 'KeyA', 1, 2, 3, 4, 5, 6], speed: 99, inputOffset: 'x', volMaster: -3, fx: 'ultra', death: 'no', reduceMotion: true, anyKey: 'yes' });
+    T('설정 값 검증 + 기본값 복구', s.anyKey === true && sanitizeSettings({ anyKey: false }).anyKey === false && s.keys.join() === DEFAULT_KEYS.join() && s.speed === 15 && s.inputOffset === 0 && s.volMaster === 0 && s.fx === 'high' && s.death === true && s.reduceMotion === true && sanitizeSettings('garbage').speed === 8);
   });
 
   // ---- 9. 분석기: 합성 테스트 신호 ----
@@ -4082,6 +4237,10 @@ async function runSelfTests(report) {
     T('128BPM 클릭: 신뢰도 High', an.tempo.conf === 'high', an.tempo.conf + ' (fit ' + an.tempo.fit.toFixed(2) + ')');
     let worstOn = 0; an.onsets.forEach(function (o) { if (o.s < 1) return; let e = (((o.t - 0.2) % (60 / 128)) + 60 / 128) % (60 / 128); if (e > 30 / 128) e -= 60 / 128; worstOn = Math.max(worstOn, Math.abs(e)); });
     T('onset 시간 정밀도 ±12ms 이내', worstOn <= 0.012, '최대 오차 ' + (worstOn * 1000).toFixed(1) + 'ms');
+    for (let i = 0; i < 3; i++) {
+      const ca = P.generateChart(an, { diff: D[i], bpm: an.tempo.bpm, offset: an.tempo.offset, mode: 'grid', confidence: an.tempo.conf, sens: 50, seed: 4242, input: 'any' }), sa = P.chartStats(ca);
+      T('128BPM 클릭 아무 키 채보(' + P.DIFFS[D[i]].name + '): 정렬 ±20ms + 검증기 통과', ca.meta.input === 'any' && sa.notes >= 20 && alignErr(ca, 0.2, 128) <= 20 && P.validateChart(ca).length === 0 && !ca.meta.fallback, '노트 ' + sa.notes);
+    }
     for (let i = 0; i < 3; i++) {
       const c = gen(an, D[i]), st = P.chartStats(c), w = alignErr(c, 0.2, 128);
       T('128BPM 클릭 채보(' + P.DIFFS[D[i]].name + '): 탭이 클릭에 ±20ms 정렬 + 검증기 통과', st.notes >= 20 && w <= 20 && P.validateChart(c).length === 0 && !c.meta.fallback, '노트 ' + st.notes + ', 최대 오차 ' + w.toFixed(1) + 'ms');
@@ -4105,21 +4264,25 @@ async function runSelfTests(report) {
       T('앰비언트 패드 채보(' + P.DIFFS[D[i]].name + '): 원음 타이밍·낮은 밀도·즉사 없음·검증기 통과', c.meta.mode === 'raw' && st.notes / an.duration < 1.2 && st.deaths === 0 && P.validateChart(c).length === 0, '노트 ' + st.notes + ' (' + (st.notes / an.duration).toFixed(2) + '/초)');
     }
     const forced = P.generateChart(an, { diff: 'hard', bpm: 120, offset: 0, mode: 'grid', confidence: 'low', sens: 100, seed: 1 });
+    const pa = P.generateChart(an, { diff: 'hard', bpm: an.tempo.bpm, offset: an.tempo.offset, mode: 'raw', confidence: 'low', sens: 50, seed: 99, input: 'any' });
+    T('앰비언트 패드 아무 키 채보: 낮은 밀도·즉사 없음·검증기 통과', P.chartStats(pa).deaths === 0 && P.chartStats(pa).notes / an.duration < 1.5 && P.validateChart(pa).length === 0);
     T('신뢰도 Low: 격자 모드를 강제해도 즉사 노트 없음', P.chartStats(forced).deaths === 0 && P.validateChart(forced).length === 0);
   });
   await safe('분석기: 퍼즈', async function () {
     let ok = true, info = [];
     for (let seed = 1; seed <= 3 && ok; seed++) {
       const an = P.analyzeSync(TestSignals.messy(32000, 30, seed * 77), 32000);
-      for (let i = 0; i < 3; i++) for (let m = 0; m < 2; m++) for (let sn = 0; sn <= 100; sn += 50) {
-        const c = P.generateChart(an, { diff: D[i], bpm: an.tempo.bpm, offset: an.tempo.offset, mode: m ? 'grid' : 'raw', confidence: m ? 'high' : 'low', sens: sn, seed: seed });
+      for (let i = 0; i < 3; i++) for (let m = 0; m < 2; m++) for (let sn = 0; sn <= 100; sn += 50) for (let ip = 0; ip < 2; ip++) {
+        const input = ip ? 'any' : 'lane';
+        const c = P.generateChart(an, { diff: D[i], bpm: an.tempo.bpm, offset: an.tempo.offset, mode: m ? 'grid' : 'raw', confidence: m ? 'high' : 'low', sens: sn, seed: seed, input: input });
         const st = P.chartStats(c);
-        if (P.validateChart(c).length || st.maxNps > P.DIFFS[D[i]].maxNps) ok = false;
+        if (P.validateChart(c).length || st.maxNps > P.prof(D[i], input).maxNps || (c.meta.input || 'lane') !== input) ok = false;
+        if (ip) continue;
         if (sn === 50 && m === 1) info.push(P.DIFFS[D[i]].name + ' ' + st.notes);
       }
       await tick();
     }
-    T('무작위 타악 신호 × 난이도 × 모드 × 민감도: 항상 합법 채보', ok, info.join(', '));
+    T('무작위 타악 신호 × 난이도 × 모드 × 민감도 × 입력 방식: 항상 합법 채보', ok, info.join(', '));
     const an = P.analyzeSync(TestSignals.messy(32000, 20, 5), 32000), fb = P.fallbackChart(an, { diff: 'hard', seed: 3, bpm: 120, offset: 0 }, {});
     T('안전한 단순 채보(대체): 탭만, 검증기 통과', fb.notes.every(function (n) { return n.type === 'tap'; }) && P.validateChart(fb).length === 0, '노트 ' + fb.notes.length);
   });
